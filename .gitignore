@@ -20,3 +20,7 @@ features.npz
 
 # Data
 data/
+out/
+viz/
+viz_out/
+err.log
