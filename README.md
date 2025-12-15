@@ -28,29 +28,41 @@ This approach is based on the idea that AI-generated images often contain subtle
 
 ```
 deepdect/
-├── data/                     # 데이터셋 루트 폴더
-│   └── CIFAKE/
+├── data/                               # 데이터셋 루트 폴더
+│   └── <dataset_name>/
 │       ├── train/
 │       │   ├── real/
 │       │   └── fake/
 │       └── test/
 │           ├── real/
 │           └── fake/
-├── CIFAKE_output/            # 파이프라인 실행 시 생성되는 결과물 폴더
-│   ├── CIFAKE_train_features.csv
-│   ├── CIFAKE_test_features.csv
-│   ├── CIFAKE_rf.joblib
-│   └── report_CIFAKE_rf/
+├── <dataset_name>_output/              # 파이프라인 실행 시 생성되는 결과물 폴더 (예: CIFAKE_output/)
+│   ├── <dataset_name>_train_features.csv
+│   ├── <dataset_name>_test_features.csv
+│   ├── <model_name>.joblib             # 학습된 모델 (예: CIFAKE_rf.joblib)
+│   └── report_<model_name>/            # 모델 평가 리포트 폴더
 │       ├── report.json
 │       └── confusion_matrix.png
-├── extract_features.py       # 이미지에서 특징을 추출하고 CSV로 저장
-├── train.py                  # 특징 CSV 파일을 이용해 모델을 학습
-├── eval.py                   # 학습된 모델을 평가
-├── predict.py                # 단일 이미지 또는 폴더에 대해 예측 수행
-├── run_pipeline.py           # 전체 파이프라인(특징 추출, 학습, 평가)을 실행
-├── features.py               # 특징 추출 함수 모음
-├── requirements.txt
-└── README.md
+├── out/                                # 기타 출력 폴더 (예: 상관관계 분석 결과)
+├── viz/                                # 시각화 스크립트에서 생성되는 이미지 샘플
+├── aigen-vs-real_output/               # 'AI-Generated Images vs Real Images' 데이터셋 관련 출력
+├── CIFAKE_output/                      # 'CIFAKE' 데이터셋 관련 출력
+├── gemini_output/                      # 'Gemini' 데이터셋 관련 출력
+├── analyze_correlation.py              # 특징 간 상관관계 분석 및 시각화
+├── eval.py                             # 학습된 모델을 평가
+├── extract_features.py                 # 이미지에서 특징을 추출하고 CSV로 저장
+├── features.py                         # 특징 추출 함수 모음
+├── gemini.md                           # 프로젝트 초기 설계 및 가이드 문서
+├── predict.py                          # 단일 이미지 또는 폴더에 대해 예측 수행
+├── probe_features.py                   # 특정 특징 그룹의 성능을 탐색
+├── README.md                           # 이 문서
+├── requirements.txt                    # Python 의존성 목록
+├── run_pipeline.py                     # 전체 파이프라인(특징 추출, 학습, 평가)을 실행
+├── skeleton.py                         # (참고용) 기본 스크립트 구조 또는 유틸리티
+├── train.py                            # 특징 CSV 파일을 이용해 모델을 학습
+├── visualize_reports.py                # 학습 및 평가 리포트를 시각화
+├── viz_forensic.py                     # 이미지 포렌식 관점의 시각화 도구 (FFT, Residual 등)
+└── ...
 ```
 
 ### 설치 및 준비
@@ -144,173 +156,11 @@ python eval.py --csv CIFAKE_output/test_features.csv --model CIFAKE_output/model
 python predict.py --model CIFAKE_output/model_rf.joblib --input /path/to/your/image.jpg
 ```
 
----
+#### 유틸리티 스크립트
 
-## (ENG)
+프로젝트에는 개발 및 분석을 돕기 위한 여러 유틸리티 스크립트가 포함되어 있습니다.
 
-## AI-Generated Image Detector
-
-This project provides a lightweight machine learning detector to distinguish between real and AI-generated images. It avoids deep learning models and instead uses traditional machine learning classifiers trained on statistical and frequency-based features.
-
-This approach is based on the idea that AI-generated images often contain subtle artifacts from the generation process (e.g., upsampling), which can be captured by analyzing the frequency domain, color space, and noise patterns.
-
-### Core Features
-
-The detector analyzes images by extracting five main groups of statistical features:
-
-1.  **1D Power Spectrum**: The 1D power spectrum, obtained through azimuthal integration of the 2D Fourier transform, is effective at detecting periodic patterns unique to generative models.
-2.  **Spectral Distortions**: Calculates features like the energy ratio of different frequency bands to capture distortions caused by upsampling processes.
-3.  **Color Cues**: Leverages the differences between the image processing pipeline (ISP) of real cameras and the color generation methods of models. Features include the saturation distribution in the HSV color space and correlation coefficients between RGB channels.
-4.  **Noise Residuals**: Analyzes the residual patterns left after applying a denoising filter to an image. This utilizes the statistical differences between sensor noise in real images and generated noise patterns.
-5.  **GLCM (Gray-Level Co-occurrence Matrix)**: To analyze image texture, GLCM is computed, and Haralick features such as Contrast, Homogeneity, and Energy are extracted from it.
-
-### Project Structure
-
-```
-deepdect/
-├── data/                     # Dataset root folder
-│   └── CIFAKE/
-│       ├── train/
-│       │   ├── real/
-│       │   └── fake/
-│       └── test/
-│           ├── real/
-│           └── fake/
-├── CIFAKE_output/            # Output directory created when the pipeline runs
-│   ├── CIFAKE_train_features.csv
-│   ├── CIFAKE_test_features.csv
-│   ├── CIFAKE_rf.joblib
-│   └── report_CIFAKE_rf/
-│       ├── report.json
-│       └── confusion_matrix.png
-├── extract_features.py       # Extracts features from images and saves them to a CSV
-├── train.py                  # Trains a model using the feature CSV file
-├── eval.py                   # Evaluates a trained model
-├── predict.py                # Performs prediction on a single image or a folder
-├── run_pipeline.py           # Runs the entire pipeline (extraction, training, evaluation)
-├── features.py               # Collection of feature extraction functions
-├── requirements.txt
-└── README.md
-```
-
-### Setup and Preparation
-
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository-url>
-    cd deepdect
-    ```
-
-2.  **Create and activate a virtual environment:**
-    ```bash
-    python -m venv .venv
-    # Windows
-    .venv\Scripts\activate
-    # macOS/Linux
-    source .venv/bin/activate
-    ```
-
-3.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Prepare data:**
-    Place your dataset under the `data` folder. `run_pipeline.py` expects the following structure:
-    - `data/<dataset_name>/train/real/`
-    - `data/<dataset_name>/train/fake/`
-    - `data/<dataset_name>/test/real/`
-    - `data/<dataset_name>/test/fake/`
-
-### Datasets
-
-This project has been tested with the following datasets. You can download them and place them in the `data` folder.
-
-- **CIFAKE: Real and AI-Generated Synthetic Images**: [Kaggle Link](https://www.kaggle.com/datasets/birdy654/cifake-real-and-ai-generated-synthetic-images)
-- **AI-Generated Images vs Real Images**: [Kaggle Link](https://www.kaggle.com/datasets/tristanzhang32/ai-generated-images-vs-real-images)
-
-### Usage
-
-#### Running the Full Pipeline
-
-The `run_pipeline.py` script automates the entire process of **feature extraction, training multiple models, and evaluation** for a specified dataset.
-
-```bash
-python run_pipeline.py --data_dir data/CIFAKE
-```
-
-- This command uses the `data/CIFAKE` dataset and saves the features, trained models, and evaluation reports into the `CIFAKE_output` directory. By default, it will skip feature extraction or training if the corresponding files already exist, saving time.
-
-##### Pipeline Options
-
-- `--feature-importance`: For supported models (`rf`, `xgb`), this will generate and save a plot of feature importances (`feature_importance.png`) in the report directory.
-- `--force-extract`: Forces the script to re-extract features even if the feature files (`_features.csv`) already exist.
-- `--force-train`: Forces the script to retrain models even if the model files (`.joblib`) already exist.
-- `--residual_mode`: Selects the method for noise residual calculation ('denoise': precise but slow, 'highpass': fast).
-
-**Example (using the fast feature extraction mode):**
-```bash
-python run_pipeline.py --data_dir data/CIFAKE --residual_mode highpass
-```
-
-#### Running Individual Scripts
-
-**1. Feature Extraction (`extract_features.py`)**
-
-- This script uses multi-core parallel processing to extract features quickly.
-- Key Options:
-    - `--n_jobs`: Number of CPU cores to use (-1 uses all available cores).
-    - `--residual_mode`: Method for noise residual calculation ('denoise' or 'highpass').
-
-```bash
-python extract_features.py --real_dir data/CIFAKE/train/real --fake_dir data/CIFAKE/train/fake --out_csv CIFAKE_output/train_features.csv --residual_mode highpass
-```
-
-**2. Model Training (`train.py`)**
-
-```bash
-python train.py --csv CIFAKE_output/train_features.csv --model rf --out_model CIFAKE_output/model_rf.joblib
-```
-
-**3. Model Evaluation (`eval.py`)**
-
-```bash
-python eval.py --csv CIFAKE_output/test_features.csv --model CIFAKE_output/model_rf.joblib --report_dir CIFAKE_output/report_rf
-```
-
-**4. Prediction (`predict.py`)**
-
-```bash
-python predict.py --model CIFAKE_output/model_rf.joblib --input /path/to/your/image.jpg
-```
----
-### 최근 변경사항 (Recent Updates) - 2025-12-15
-
-- **특징 추출기 리팩토링 (Feature Extractor Refactoring)**:
-  - `features.py`: GLCM(질감), 상세 통계(왜도/첨도) 등 더 많은 특징을 포함하도록 개선되었습니다.
-  - `extract_features.py`: 딕셔너리 기반의 새로운 특징 추출 방식을 사용하도록 코드를 개선하여 안정성과 확장성을 높였습니다.
-  - 데이터 구조를 `data/gemini/real|fake`로 표준화했습니다.
-
-- **Feature Extractor Refactoring**:
-  - `features.py`: Enhanced to include more features like GLCM (texture) and detailed statistics (skewness/kurtosis).
-  - `extract_features.py`: Code improved to use a new dictionary-based feature extraction method, increasing stability and extensibility.
-  - Standardized the data structure to `data/gemini/real|fake`.
----
-## Results
-
-### CIFAKE Dataset
-
-| Model         | Accuracy | AUROC  |
-|---------------|----------|--------|
-| Linear SVM    | 0.7969   | N/A    |
-| Random Forest | 0.7795   | 0.8552 |
-| XGBoost       | 0.8045   | 0.8861 |
-
-### AI-Generated vs. Real Images Dataset
-
-| Model         | Accuracy | AUROC  |
-|---------------|----------|--------|
-| Linear SVM    | 0.6631   | N/A    |
-| RBF SVM       | 0.6838   | 0.7416 |
-| Random Forest | 0.6923   | 0.7559 |
-| XGBoost       | 0.6998   | 0.7657 |
+-   **`analyze_correlation.py`**: 추출된 특징들 간의 상관관계를 분석하고 히트맵 등으로 시각화하여 특징의 독립성 및 중요도를 파악하는 데 도움을 줍니다.
+-   **`probe_features.py`**: 특정 특징 그룹(예: 스펙트럼 특징, 색상 특징 등)만을 사용하여 모델을 학습하고 평가함으로써, 각 특징 그룹의 탐지 성능 기여도를 개별적으로 분석할 수 있습니다.
+-   **`visualize_reports.py`**: `eval.py`에서 생성된 JSON 형식의 리포트 파일들을 읽어와 그래프(예: ROC 곡선 비교, 여러 모델의 성능 지표 비교)로 시각화합니다.
+-   **`viz_forensic.py`**: 이미지 자체의 특성(예: 푸리에 스펙트럼, 노이즈 잔여물, GLCM 텍스처 등)을 시각적으로 탐색하고 비교하기 위한 도구입니다. 리얼 및 생성 이미지 간의 시각적 차이를 이해하는 데 유용합니다.
