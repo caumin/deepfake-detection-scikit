@@ -2,7 +2,7 @@ import pandas as pd
 import argparse
 import joblib
 import os
-from features import get_feature_names
+# from features import get_feature_names # Removed this import
 
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
@@ -59,9 +59,9 @@ def main():
             raise ValueError(f"The following features were not found in the CSV: {', '.join(missing_features)}")
         feature_columns = args.features
     else:
-        # Dynamically get feature columns from the features module
+        # Dynamically get feature columns from the dataframe by excluding 'path' and 'label'
         print("Training on all features.")
-        feature_columns = get_feature_names(feature_size_spec1d=len([c for c in df.columns if c.startswith('spec_bin_')]))
+        feature_columns = [col for col in df.columns if col not in ['path', 'label']]
     
     X = df[feature_columns]
     y = df['label']

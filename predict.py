@@ -7,7 +7,7 @@ from tqdm import tqdm
 import glob
 import pandas as pd
 
-from features import extract_all_features, get_feature_names
+from features import extract_all_features#, get_feature_names # Removed get_feature_names
 
 def main():
     parser = argparse.ArgumentParser(description="Predict if an image is real or fake using a trained model.")
@@ -23,7 +23,9 @@ def main():
     # --- Load Model ---
     print(f"Loading model from {args.model}...")
     try:
-        model = joblib.load(args.model)
+        saved_object = joblib.load(args.model)
+        model = saved_object['model']
+        training_feature_names = saved_object['feature_names'] # Get feature names from the saved object
     except Exception as e:
         print(f"Error loading model: {e}")
         return
@@ -62,14 +64,18 @@ def main():
                 img = cv2.imdecode(img_encoded, cv2.IMREAD_COLOR)
             
             # Feature Extraction (must be identical to training)
-            feature_vector = extract_all_features(img, feature_size_spec1d=args.bins)
+            # Make sure to pass correct bins to extract_all_features
+            feature_vector_dict = extract_all_features(img, spec_bins=args.bins, color_bins=32, residual_mode='highpass') # default color_bins=32, residual_mode='highpass'
             
-            # The model expects a 2D array
-            feature_vector_2d = feature_vector.reshape(1, -1)
-
-            # Get feature names to create a DataFrame (some models like LightGBM require this)
-            feature_names = get_feature_names(feature_size_spec1d=args.bins)
-            df = pd.DataFrame(feature_vector_2d, columns=feature_names)
+            # Convert feature_vector_dict to a pandas Series, then to DataFrame, ensuring order of features
+            feature_series = pd.Series(feature_vector_dict)
+            
+            # Align features with the ones the model was trained on
+            # This is crucial for models like XGBoost that care about feature names/order
+            # We need to make sure the feature_series contains all training_feature_names
+            # If some features are missing in the extracted feature_series, they will be NaN in the DataFrame,
+            # which might cause issues. However, if extract_all_features is consistent, this should be fine.
+            df = pd.DataFrame([feature_series[training_feature_names].values], columns=training_feature_names)
 
             # Prediction
             prediction = model.predict(df)[0]
