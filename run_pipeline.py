@@ -2,6 +2,8 @@ import os
 import subprocess
 import argparse
 import logging
+import pandas as pd
+from sklearn.model_selection import train_test_split
 
 # Basic logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -42,8 +44,6 @@ def main(args):
     """Main pipeline orchestration function."""
     dataset_name = os.path.basename(os.path.normpath(args.data_dir))
     output_dir = f"{dataset_name}_output"
-    
-    # Create the main output directory
     os.makedirs(output_dir, exist_ok=True)
     logging.info(f"Created output directory: {output_dir}")
 
@@ -52,58 +52,82 @@ def main(args):
     test_csv = os.path.join(output_dir, f"{dataset_name}_test_features.csv")
 
     # --- 1. Feature Extraction ---
+    # Check if data is pre-split or needs splitting
+    train_base_path = os.path.join(args.data_dir, 'train')
+    test_base_path = os.path.join(args.data_dir, 'test')
+    is_pre_split = os.path.isdir(train_base_path) and os.path.isdir(test_base_path)
+
     skip_extraction = False
     if os.path.exists(train_csv) and os.path.exists(test_csv) and not args.force_extract:
-        logging.info(f"Feature files already exist and --force-extract not specified. Skipping feature extraction.")
+        logging.info("Feature files already exist and --force-extract not specified. Skipping feature extraction.")
         skip_extraction = True
 
     if not skip_extraction:
         try:
-            # For training data
-            logging.info("--- Starting Feature Extraction for Training Data ---")
-            train_base_path = os.path.join(args.data_dir, 'train')
-            real_train_dir, fake_train_dir = find_real_fake_dirs(train_base_path)
-            extract_cmd_train = [
-                'python', 'extract_features.py',
-                '--real_dir', real_train_dir,
-                '--fake_dir', fake_train_dir,
-                '--out_csv', train_csv,
-                '--bins', str(args.bins),
-                '--color_bins', str(args.color_bins),
-                '--residual_mode', args.residual_mode
-            ]
-            run_command(extract_cmd_train)
+            if is_pre_split:
+                logging.info("--- Pre-split train/test folders found. Extracting features separately. ---")
+                # For training data
+                real_train_dir, fake_train_dir = find_real_fake_dirs(train_base_path)
+                extract_cmd_train = [
+                    'python', 'extract_features.py',
+                    '--real_dir', real_train_dir, '--fake_dir', fake_train_dir,
+                    '--out_csv', train_csv, '--bins', str(args.bins),
+                    '--color_bins', str(args.color_bins), '--residual_mode', args.residual_mode,
+                    '--img_size', str(args.img_size)
+                ]
+                run_command(extract_cmd_train)
 
-            # For testing data
-            logging.info("--- Starting Feature Extraction for Test Data ---")
-            test_base_path = os.path.join(args.data_dir, 'test')
-            real_test_dir, fake_test_dir = find_real_fake_dirs(test_base_path)
-            extract_cmd_test = [
-                'python', 'extract_features.py',
-                '--real_dir', real_test_dir,
-                '--fake_dir', fake_test_dir,
-                '--out_csv', test_csv,
-                '--bins', str(args.bins),
-                '--color_bins', str(args.color_bins),
-                '--residual_mode', args.residual_mode
-            ]
-            run_command(extract_cmd_test)
+                # For testing data
+                real_test_dir, fake_test_dir = find_real_fake_dirs(test_base_path)
+                extract_cmd_test = [
+                    'python', 'extract_features.py',
+                    '--real_dir', real_test_dir, '--fake_dir', fake_test_dir,
+                    '--out_csv', test_csv, '--bins', str(args.bins),
+                    '--color_bins', str(args.color_bins), '--residual_mode', args.residual_mode,
+                    '--img_size', str(args.img_size)
+                ]
+                run_command(extract_cmd_test)
+            else:
+                logging.info("--- No pre-split folders found. Extracting all features and then splitting. ---")
+                real_dir, fake_dir = find_real_fake_dirs(args.data_dir)
+                all_features_csv = os.path.join(output_dir, f"{dataset_name}_all_features.csv")
+                
+                # Extract features for the entire dataset
+                extract_cmd_all = [
+                    'python', 'extract_features.py',
+                    '--real_dir', real_dir, '--fake_dir', fake_dir,
+                    '--out_csv', all_features_csv, '--bins', str(args.bins),
+                    '--color_bins', str(args.color_bins), '--residual_mode', args.residual_mode,
+                    '--img_size', str(args.img_size)
+                ]
+                run_command(extract_cmd_all)
+
+                # Load the full feature set and split it
+                logging.info(f"Loading features from {all_features_csv} for splitting...")
+                df = pd.read_csv(all_features_csv)
+                
+                train_df, test_df = train_test_split(
+                    df, 
+                    test_size=0.2, # Standard 80/20 split
+                    random_state=42,
+                    stratify=df['label'] # Preserve class distribution
+                )
+                
+                logging.info(f"Saving split features to {train_csv} and {test_csv}...")
+                train_df.to_csv(train_csv, index=False)
+                test_df.to_csv(test_csv, index=False)
+                os.remove(all_features_csv) # Clean up the combined file
+                logging.info("Splitting complete.")
+
             logging.info("--- Feature Extraction Complete ---")
 
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             logging.error(f"Failed during feature extraction. Aborting pipeline. Error: {e}")
             return
-    else:
-        # We need to make sure the subsequent steps can run.
-        if not (os.path.exists(train_csv) and os.path.exists(test_csv)):
-            logging.error("Feature files not found, and extraction was skipped. Aborting pipeline.")
-            logging.error(f"Expected train features at: {train_csv}")
-            logging.error(f"Expected test features at: {test_csv}")
-            return
-
+    
     # --- 2. & 3. Training and Evaluation Loop ---
-    #supported_models = ['linsvm', 'rbfsvm', 'xgb', 'rf']
-    supported_models = ['xgb']
+    # The rest of the script remains the same as it consumes train_csv and test_csv
+    supported_models = ['linsvm', 'rbfsvm', 'xgb', 'rf']
     logging.info(f"--- Starting Training and Evaluation for models: {supported_models} ---")
 
     for model_name in supported_models:
@@ -140,15 +164,18 @@ def main(args):
             ]
             
             # Add feature importance flag for supported models
-            if args.feature_importance and model_name in ['rf', 'xgb']:
+            if model_name in ['rf', 'xgb']:
                 eval_cmd.append('--feature-importance')
+
+            # Add decision boundary plot arguments
+            eval_cmd.extend(['--plot-decision-boundary', '--train-csv', train_csv])
 
             run_command(eval_cmd)
             logging.info(f"--- Finished processing model: {model_name.upper()} ---")
 
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             logging.error(f"Pipeline failed for model '{model_name}'. Skipping to next model. Error: {e}")
-            continue # Move to the next model
+            continue
             
     logging.info("--- Pipeline Finished ---")
 
@@ -178,7 +205,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--bins',
         type=int,
-        default=128,
+        default=32,
         help="Number of bins for the 1D power spectrum feature."
     )
     parser.add_argument(
@@ -193,6 +220,12 @@ if __name__ == '__main__':
         default='denoise',
         choices=['denoise', 'highpass'],
         help="Method for noise residual calculation ('denoise' is slow, 'highpass' is fast)."
+    )
+    parser.add_argument(
+        '--img_size',
+        type=int,
+        default=224,
+        help="Size to resize images to (e.g., 224)."
     )
     args = parser.parse_args()
     main(args)

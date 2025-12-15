@@ -16,12 +16,13 @@ This approach is based on the idea that AI-generated images often contain subtle
 
 ### 핵심 특징
 
-본 탐지기는 4가지 주요 통계적 특징 그룹을 추출하여 이미지를 분석합니다.
+본 탐지기는 5가지 주요 통계적 특징 그룹을 추출하여 이미지를 분석합니다.
 
 1.  **1D 파워 스펙트럼 (1D Power Spectrum)**: 이미지의 2D 푸리에 변환 후 방위각 적분(azimuthal integration)을 통해 얻은 1D 파워 스펙트럼은 생성 모델 특유의 주기적인 패턴을 탐지하는 데 효과적입니다.
 2.  **스펙트럼 왜곡 (Spectral Distortions)**: 업샘플링 과정에서 발생하는 스펙트럼의 왜곡을 포착하기 위해 특정 주파수 대역의 에너지 비율 등을 계산합니다.
 3.  **색상 단서 (Color Cues)**: 실제 카메라의 이미지 처리 파이프라인(ISP)과 생성 모델의 색상 처리 방식의 차이를 활용합니다. HSV 색 공간에서의 채도(Saturation) 분포, RGB 채널 간 상관 계수 등을 특징으로 사용합니다.
 4.  **노이즈 잔여물 (Noise Residuals)**: 이미지에서 노이즈 제거 필터를 적용한 후 남는 잔여물(residual)을 분석합니다. 실제 이미지의 센서 노이즈와 생성된 노이즈 패턴의 통계적 차이를 활용합니다.
+5.  **GLCM (Gray-Level Co-occurrence Matrix)**: 이미지의 텍스처(질감)를 분석하기 위해 GLCM을 계산하고, 이로부터 대조(Contrast), 동질성(Homogeneity), 에너지(Energy) 등 Haralick 특징을 추출합니다.
 
 ### 프로젝트 구조
 
@@ -155,12 +156,13 @@ This approach is based on the idea that AI-generated images often contain subtle
 
 ### Core Features
 
-The detector analyzes images by extracting four main groups of statistical features:
+The detector analyzes images by extracting five main groups of statistical features:
 
 1.  **1D Power Spectrum**: The 1D power spectrum, obtained through azimuthal integration of the 2D Fourier transform, is effective at detecting periodic patterns unique to generative models.
 2.  **Spectral Distortions**: Calculates features like the energy ratio of different frequency bands to capture distortions caused by upsampling processes.
 3.  **Color Cues**: Leverages the differences between the image processing pipeline (ISP) of real cameras and the color generation methods of models. Features include the saturation distribution in the HSV color space and correlation coefficients between RGB channels.
 4.  **Noise Residuals**: Analyzes the residual patterns left after applying a denoising filter to an image. This utilizes the statistical differences between sensor noise in real images and generated noise patterns.
+5.  **GLCM (Gray-Level Co-occurrence Matrix)**: To analyze image texture, GLCM is computed, and Haralick features such as Contrast, Homogeneity, and Energy are extracted from it.
 
 ### Project Structure
 
@@ -281,6 +283,18 @@ python eval.py --csv CIFAKE_output/test_features.csv --model CIFAKE_output/model
 ```bash
 python predict.py --model CIFAKE_output/model_rf.joblib --input /path/to/your/image.jpg
 ```
+---
+### 최근 변경사항 (Recent Updates) - 2025-12-15
+
+- **특징 추출기 리팩토링 (Feature Extractor Refactoring)**:
+  - `features.py`: GLCM(질감), 상세 통계(왜도/첨도) 등 더 많은 특징을 포함하도록 개선되었습니다.
+  - `extract_features.py`: 딕셔너리 기반의 새로운 특징 추출 방식을 사용하도록 코드를 개선하여 안정성과 확장성을 높였습니다.
+  - 데이터 구조를 `data/gemini/real|fake`로 표준화했습니다.
+
+- **Feature Extractor Refactoring**:
+  - `features.py`: Enhanced to include more features like GLCM (texture) and detailed statistics (skewness/kurtosis).
+  - `extract_features.py`: Code improved to use a new dictionary-based feature extraction method, increasing stability and extensibility.
+  - Standardized the data structure to `data/gemini/real|fake`.
 ---
 ## Results
 
