@@ -5,6 +5,9 @@ tqdm
 pandas
 joblib
 matplotlib
+Pillow
+scipy
+seaborn
 # optional
 xgboost
 shap
